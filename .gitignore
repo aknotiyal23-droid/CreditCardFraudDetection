@@ -1,7 +1,41 @@
+# Python virtual environments
 venv/
-.matplotlib/
+.venv/
+
+# Python cache
 __pycache__/
 *.pyc
+*.pyo
+
+# Matplotlib
+.matplotlib/
+
+# Jupyter Notebook
 .ipynb_checkpoints/
+
+# Secrets and environment variables
 .env
+.env.*
+
+# Logs
 *.log
+
+# Frontend dependencies
+node_modules/
+frontend/node_modules/
+
+# Frontend build files
+frontend/dist/
+
+# Temporary files
+tempCodeRunnerFile.python
+test_transactions.csv
+
+# IDE and operating system
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Datasets - do not upload raw data
+data/raw/
+data/processed/
