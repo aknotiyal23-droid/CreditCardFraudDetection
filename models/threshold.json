@@ -1,0 +1,7 @@
+{
+    "best_threshold": 33.004216649057994,
+    "IF_WEIGHT": 0.25,
+    "LOF_WEIGHT": 0.25,
+    "SVM_WEIGHT": 0.2,
+    "AE_WEIGHT": 0.3
+}
