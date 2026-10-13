@@ -15,7 +15,6 @@ import numpy as np
 import tensorflow as tf
 import json
 
-
 # =========================================================
 # FASTAPI APPLICATION
 # =========================================================
@@ -198,6 +197,38 @@ def health_check():
         "models_loaded": True,
         "model_type": "Hybrid Anomaly Detection"
     }
+
+
+# =========================================================
+# MODEL EVALUATION RESULTS
+# =========================================================
+
+@app.get("/model-metrics")
+def get_model_metrics():
+    metrics_path = MODEL_DIR / "evaluation_results.json"
+
+    if not metrics_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Model evaluation results not found"
+        )
+
+    try:
+        with open(metrics_path, "r", encoding="utf-8") as file:
+            metrics = json.load(file)
+
+        return {
+            "status": "success",
+            "metrics": metrics
+        }
+
+    except (json.JSONDecodeError, OSError) as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to read evaluation results: {exc}"
+        )
+
+
 
 
 # =========================================================

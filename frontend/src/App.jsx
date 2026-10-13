@@ -1,149 +1,129 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 
-const API_URL = "http://127.0.0.1:8000";
+// Deployed Render API
+const API_URL = "https://credit-card-fraud-api-7gp8.onrender.com";
 
 function App() {
   const [amount, setAmount] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // PostgreSQL data
   const [history, setHistory] = useState([]);
   const [alerts, setAlerts] = useState([]);
+  const [modelMetrics, setModelMetrics] = useState(null);
+  const [metricsError, setMetricsError] = useState("");
   const [dashboardError, setDashboardError] = useState("");
   const [stats, setStats] = useState({
     total_transactions: 0,
     fraud_detected: 0,
     normal_transactions: 0,
     high_risk_transactions: 0,
-    average_risk_score: 0
+    average_risk_score: 0,
   });
 
-  // Bulk CSV analysis
   const [csvFile, setCsvFile] = useState(null);
   const [csvResult, setCsvResult] = useState(null);
   const [csvLoading, setCsvLoading] = useState(false);
   const [csvError, setCsvError] = useState("");
 
-  // ================================
-  // LOAD DATABASE DATA
-  // ================================
   const loadDashboardData = async () => {
     try {
       setDashboardError("");
-
       const [historyResponse, statsResponse, alertsResponse] = await Promise.all([
         fetch(`${API_URL}/history`),
         fetch(`${API_URL}/stats`),
-        fetch(`${API_URL}/alerts`)
+        fetch(`${API_URL}/alerts`),
       ]);
 
       if (!historyResponse.ok || !statsResponse.ok || !alertsResponse.ok) {
-        throw new Error("Failed to load dashboard data");
+        throw new Error("Dashboard API request failed");
       }
 
-      const historyData = await historyResponse.json();
-      const statsData = await statsResponse.json();
-      const alertsData = await alertsResponse.json();
+      const [historyData, statsData, alertsData] = await Promise.all([
+        historyResponse.json(),
+        statsResponse.json(),
+        alertsResponse.json(),
+      ]);
 
       setHistory(historyData.transactions || []);
-      setStats(statsData);
+      setStats((previous) => ({ ...previous, ...statsData }));
       setAlerts(alertsData.alerts || []);
+
+      // Load saved model evaluation metrics separately so a metrics error
+      // does not prevent the rest of the dashboard from loading.
+      try {
+        const metricsResponse = await fetch(`${API_URL}/model-metrics`);
+        const metricsData = await metricsResponse.json().catch(() => ({}));
+        if (!metricsResponse.ok) {
+          throw new Error(metricsData.detail || `Metrics API returned ${metricsResponse.status}`);
+        }
+        setModelMetrics(metricsData.metrics || metricsData);
+        setMetricsError("");
+      } catch (metricsFetchError) {
+        console.error("Model metrics loading error:", metricsFetchError);
+        setMetricsError("Model metrics are unavailable on the deployed API. Deploy the updated backend to Render, then refresh.");
+      }
     } catch (error) {
       console.error("Dashboard loading error:", error);
       setDashboardError(
-        "Could not load dashboard data. Check that the backend is running."
+        "Dashboard data could not be loaded. The API may be waking up; try Refresh in a few seconds."
       );
     }
   };
 
-  // Load database data when page opens
   useEffect(() => {
     loadDashboardData();
   }, []);
 
-  // ================================
-  // PREDICT TRANSACTION
-  // ================================
   const predictTransaction = async () => {
-    if (!amount || Number(amount) < 0) {
-      alert("Please enter a valid transaction amount.");
+    if (amount === "" || !Number.isFinite(Number(amount)) || Number(amount) < 0) {
+      window.alert("Please enter a valid transaction amount.");
       return;
     }
 
     setLoading(true);
+    setResult(null);
 
+    // The current backend expects the transaction features used by the model.
+    // Only Amount is entered here; remaining features are illustrative defaults.
     const transaction = {
       zTime: 151328,
-      V1: 2.2887,
-      V2: -1.2961,
-      V3: -1.6174,
-      V4: -1.5921,
-      V5: -0.7502,
-      V6: -0.8120,
-      V7: -0.6525,
-      V8: -0.2908,
-      V9: -0.1000,
-      V10: -0.2000,
-      V11: 0.3000,
-      V12: -0.4000,
-      V13: 0.1000,
-      V14: -0.3000,
-      V15: 0.2000,
-      V16: -0.1000,
-      V17: 0.0500,
-      V18: -0.0500,
-      V19: 0.1000,
-      V20: -0.1000,
-      V21: 0.0500,
-      V22: -0.0500,
-      V23: 0.1000,
-      V24: -0.1000,
-      V25: 0.0500,
-      V26: -0.0500,
-      V27: 0.1000,
-      V28: -0.1000,
-      Amount: Number(amount)
+      V1: 2.2887, V2: -1.2961, V3: -1.6174, V4: -1.5921,
+      V5: -0.7502, V6: -0.8120, V7: -0.6525, V8: -0.2908,
+      V9: -0.1, V10: -0.2, V11: 0.3, V12: -0.4,
+      V13: 0.1, V14: -0.3, V15: 0.2, V16: -0.1,
+      V17: 0.05, V18: -0.05, V19: 0.1, V20: -0.1,
+      V21: 0.05, V22: -0.05, V23: 0.1, V24: -0.1,
+      V25: 0.05, V26: -0.05, V27: 0.1, V28: -0.1,
+      Amount: Number(amount),
     };
 
     try {
       const response = await fetch(`${API_URL}/predict`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(transaction)
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(transaction),
       });
-
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(`Backend returned ${response.status}`);
+        throw new Error(data.detail || `API returned ${response.status}`);
       }
-
-      const data = await response.json();
-
       setResult(data);
-
-      // Refresh real PostgreSQL data
       await loadDashboardData();
-
     } catch (error) {
       console.error("Prediction error:", error);
-      alert("Backend error: Failed to fetch");
+      window.alert(`Prediction failed: ${error.message}. Check the API /docs page.`);
     } finally {
       setLoading(false);
     }
   };
 
-  // ================================
-  // BULK CSV ANALYSIS
-  // ================================
   const uploadCSV = async () => {
     if (!csvFile) {
       setCsvError("Please select a CSV file first.");
       return;
     }
-
     if (!csvFile.name.toLowerCase().endsWith(".csv")) {
       setCsvError("Please choose a .csv file.");
       return;
@@ -151,7 +131,6 @@ function App() {
 
     const formData = new FormData();
     formData.append("file", csvFile);
-
     setCsvLoading(true);
     setCsvError("");
     setCsvResult(null);
@@ -161,22 +140,18 @@ function App() {
         method: "POST",
         body: formData,
       });
-
-      const data = await response.json();
-
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const detail =
-          typeof data.detail === "string"
-            ? data.detail
-            : JSON.stringify(data.detail || "CSV analysis failed");
+        const detail = typeof data.detail === "string"
+          ? data.detail
+          : JSON.stringify(data.detail || "CSV analysis failed");
         throw new Error(detail);
       }
-
       setCsvResult(data);
       await loadDashboardData();
     } catch (error) {
       console.error("CSV upload error:", error);
-      setCsvError(error.message || "CSV analysis failed. Check the backend.");
+      setCsvError(error.message || "CSV analysis failed. Please try again.");
     } finally {
       setCsvLoading(false);
     }
@@ -184,31 +159,13 @@ function App() {
 
   const downloadCSVResults = () => {
     if (!csvResult?.results?.length) return;
-
-    const columns = [
-      "row_number",
-      "amount",
-      "risk_score",
-      "risk_level",
-      "prediction",
-      "explanation",
-    ];
-
-    const escapeCSV = (value) => {
-      const text = String(value ?? "");
-      return `"${text.replace(/"/g, '""')}"`;
-    };
-
+    const columns = ["row_number", "amount", "risk_score", "risk_level", "prediction", "explanation"];
+    const escapeCSV = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
     const rows = [
       columns.join(","),
-      ...csvResult.results.map((item) =>
-        columns.map((column) => escapeCSV(item[column])).join(",")
-      ),
+      ...csvResult.results.map((item) => columns.map((column) => escapeCSV(item[column])).join(",")),
     ];
-
-    const blob = new Blob(["\\uFEFF", rows.join("\\r\\n")], {
-      type: "text/csv;charset=utf-8;",
-    });
+    const blob = new Blob(["\uFEFF", rows.join("\r\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -219,533 +176,222 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
-  // ================================
-  // RISK CLASS
-  // ================================
   const getRiskClass = (level) => {
-    if (!level) return "low";
-
-    const value = level.toUpperCase();
-
+    const value = String(level || "LOW").toUpperCase();
     if (value === "HIGH") return "high";
     if (value === "MEDIUM") return "medium";
-
     return "low";
   };
 
-  // ================================
-  // FORMAT SCORE
-  // ================================
   const formatScore = (value) => {
-    if (value === undefined || value === null) {
-      return "0.0000";
-    }
-
-    return Number(value).toFixed(4);
+    const number = Number(value);
+    return Number.isFinite(number) ? number.toFixed(4) : "—";
   };
 
+  const money = (value) =>
+    new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(Number(value || 0));
+
   return (
-    <div className="app">
-
-      {/* ================= HEADER ================= */}
-      <header className="header">
-
-        <div>
-          <h1>Credit Card Fraud Detection</h1>
-          <p>Hybrid Anomaly Detection System</p>
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="brand-mark">盾</div>
+        <div className="brand-copy">
+          <strong>Sentinel<span>AI</span></strong>
+          <small>FRAUD INTELLIGENCE</small>
         </div>
-
-        <div className="api-status">
-          ● API Online
+        <div className="side-label">WORKSPACE</div>
+        <a className="side-link active" href="#overview"><span>▦</span> Overview</a>
+        <a className="side-link" href="#analyze"><span>⌕</span> Analyze transaction</a>
+        <a className="side-link" href="#bulk"><span>⇧</span> Bulk CSV analysis</a>
+        <a className="side-link" href="#alerts"><span>◉</span> Fraud alerts</a>
+        <a className="side-link" href="#history"><span>◷</span> Transaction history</a>
+        <div className="sidebar-bottom">
+          <div className="secure-dot"></div>
+          <div><strong>API connection</strong><small>Render deployment</small></div>
         </div>
+      </aside>
 
-      </header>
+      <main className="main-content">
+        <header className="topbar">
+          <div>
+            <div className="eyebrow">RISK OPERATIONS / OVERVIEW</div>
+            <h1>Fraud Intelligence Dashboard</h1>
+            <p className="muted">Monitor transaction anomalies and investigate suspicious activity.</p>
+          </div>
+          <button className="button button-ghost" onClick={loadDashboardData}>↻ Refresh data</button>
+        </header>
 
+        <section id="overview" className="status-strip">
+          <span className="status-pulse"></span>
+          <span><strong>Monitoring workspace</strong> · Live API connection is checked when data is requested.</span>
+          <a href={`${API_URL}/docs`} target="_blank" rel="noreferrer">Open API docs ↗</a>
+        </section>
 
-      <main>
+        {dashboardError && <div className="notice notice-warning">{dashboardError}</div>}
 
-        {/* ================= DASHBOARD STATS ================= */}
         <section className="stats-grid">
-
-          <div className="stat-card">
-            <h3>Total Transactions</h3>
-            <div className="stat-number">
-              {stats.total_transactions}
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <h3>Fraud Detected</h3>
-            <div className="stat-number">
-              {stats.fraud_detected}
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <h3>Normal Transactions</h3>
-            <div className="stat-number">
-              {stats.normal_transactions}
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <h3>High Risk</h3>
-            <div className="stat-number">
-              {stats.high_risk_transactions}
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <h3>Average Risk</h3>
-            <div className="stat-number">
-              {Number(stats.average_risk_score || 0).toFixed(2)}
-            </div>
-          </div>
-
+          <StatCard label="Total transactions" value={stats.total_transactions} icon="▤" tone="blue" />
+          <StatCard label="Fraud detected" value={stats.fraud_detected} icon="⌁" tone="red" />
+          <StatCard label="Normal transactions" value={stats.normal_transactions} icon="✓" tone="green" />
+          <StatCard label="High-risk transactions" value={stats.high_risk_transactions} icon="⚠" tone="amber" />
         </section>
 
-
-        {/* ================= BULK CSV ANALYSIS ================= */}
-        <section className="transaction-card bulk-csv-card">
-          <h2>📂 Bulk Fraud Detection</h2>
-          <p className="subtitle">
-            Upload a CSV file to analyze multiple transactions in one batch.
-          </p>
-
-          <div className="form-group">
-            <label htmlFor="csv-upload">Select transaction CSV</label>
-            <input
-              id="csv-upload"
-              type="file"
-              accept=".csv,text/csv"
-              onChange={(event) => {
-                setCsvFile(event.target.files?.[0] || null);
-                setCsvResult(null);
-                setCsvError("");
-              }}
-            />
-            <small>
-              Required columns: zTime, V1–V28, Amount. Maximum 10,000 rows per upload.
-            </small>
+        <section className="panel metrics-panel">
+          <div className="section-heading">
+            <div>
+              <span className="section-kicker">MODEL EVALUATION</span>
+              <h2>Model performance</h2>
+              <p className="muted">Saved validation metrics from the evaluation report.</p>
+            </div>
+            <span className="live-badge">VALIDATION</span>
           </div>
-
-          <button
-            className="analyze-btn"
-            onClick={uploadCSV}
-            disabled={csvLoading || !csvFile}
-          >
-            {csvLoading ? "Analyzing CSV..." : "🚀 Analyze CSV"}
-          </button>
-
-          {csvError && (
-            <p className="csv-error" role="alert">
-              {csvError}
-            </p>
+          {metricsError && <div className="notice notice-warning">{metricsError}</div>}
+          {modelMetrics ? (
+            <div className="csv-summary-grid">
+              <MiniStat label="Precision" value={`${(Number(modelMetrics.precision || 0) * 100).toFixed(2)}%`} />
+              <MiniStat label="Recall" value={`${(Number(modelMetrics.recall || 0) * 100).toFixed(2)}%`} />
+              <MiniStat label="F1-score" value={`${(Number(modelMetrics.f1_score || 0) * 100).toFixed(2)}%`} />
+              <MiniStat label="Validation rows" value={Number(modelMetrics.validation_rows || 0).toLocaleString("en-IN")} />
+              <MiniStat label="Actual fraud cases" value={Number(modelMetrics.actual_fraud_cases || 0).toLocaleString("en-IN")} />
+              <MiniStat label="Best threshold" value={Number(modelMetrics.best_threshold || 0).toFixed(4)} />
+            </div>
+          ) : (
+            !metricsError && <EmptyState text="Loading saved model evaluation metrics…" />
           )}
+          <p className="tiny-note">These are saved evaluation results, not a guarantee of real-world fraud detection performance.</p>
+        </section>
 
-          {csvResult && (
-            <div className="csv-results">
-              <div className="history-header csv-result-heading">
-                <div>
-                  <h3>Batch Analysis Results</h3>
-                  <p className="subtitle">{csvResult.filename || csvFile?.name}</p>
-                </div>
-                <button
-                  className="refresh-btn"
-                  onClick={downloadCSVResults}
-                  disabled={!csvResult.results?.length}
-                >
-                  ⬇ Download Results CSV
-                </button>
-              </div>
-
-              <div className="csv-summary-grid">
-                <div className="stat-card">
-                  <h3>Total</h3>
-                  <div className="stat-number">{csvResult.total_transactions}</div>
-                </div>
-                <div className="stat-card">
-                  <h3>Fraud Detected</h3>
-                  <div className="stat-number">{csvResult.fraud_detected}</div>
-                </div>
-                <div className="stat-card">
-                  <h3>Normal</h3>
-                  <div className="stat-number">{csvResult.normal_transactions}</div>
-                </div>
-                <div className="stat-card">
-                  <h3>High Risk</h3>
-                  <div className="stat-number">{csvResult.high_risk_transactions}</div>
-                </div>
-              </div>
-
-              <div className="history-table-wrapper">
-                <table className="history-table">
-                  <thead>
-                    <tr>
-                      <th>CSV Row</th>
-                      <th>Amount</th>
-                      <th>Risk Score</th>
-                      <th>Risk Level</th>
-                      <th>Prediction</th>
-                      <th>Explanation</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(csvResult.results || []).map((item) => (
-                      <tr key={item.row_number}>
-                        <td>{item.row_number}</td>
-                        <td>₹{Number(item.amount || 0).toFixed(2)}</td>
-                        <td>{Number(item.risk_score || 0).toFixed(2)}</td>
-                        <td>
-                          <span className={`risk-level ${getRiskClass(item.risk_level)}`}>
-                            {item.risk_level || "UNKNOWN"}
-                          </span>
-                        </td>
-                        <td>{item.prediction || "Unknown"}</td>
-                        <td className="explanation-cell">
-                          {item.explanation || "No explanation available."}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+        <section className="content-grid">
+          <section id="analyze" className="panel analyze-panel">
+            <div className="section-heading">
+              <div><span className="section-kicker">01 / QUICK CHECK</span><h2>Analyze a transaction</h2></div>
+              <span className="panel-icon">⌕</span>
             </div>
-          )}
+            <p className="muted">Enter an amount to run a prediction using the backend's current sample feature values.</p>
+            <label htmlFor="amount">Transaction amount (₹)</label>
+            <div className="amount-input">
+              <span>₹</span>
+              <input id="amount" type="number" min="0" step="0.01" placeholder="e.g. 2499.00" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            </div>
+            <button className="button button-primary full-width" onClick={predictTransaction} disabled={loading}>
+              {loading ? <><span className="spinner"></span> Analyzing…</> : "Run fraud analysis →"}
+            </button>
+            <p className="tiny-note">Note: this quick check varies the amount only. Use CSV analysis for transaction feature data.</p>
+          </section>
+
+          <section className="panel model-panel">
+            <div className="section-heading">
+              <div><span className="section-kicker">02 / DETECTION ENGINE</span><h2>Hybrid model stack</h2></div>
+              <span className="live-badge">4 MODELS</span>
+            </div>
+            <ModelRow name="Isolation Forest" detail="Outlier detection" color="blue" />
+            <ModelRow name="Local Outlier Factor" detail="Local density anomaly" color="purple" />
+            <ModelRow name="One-Class SVM" detail="Boundary-based detection" color="green" />
+            <ModelRow name="Autoencoder" detail="Reconstruction error" color="amber" />
+            <div className="model-footnote">Model scores appear after a successful prediction.</div>
+          </section>
         </section>
 
-        {/* ================= TRANSACTION INPUT ================= */}
-        <section className="transaction-card">
-
-          <h2>Transaction Analysis</h2>
-
-          <p className="subtitle">
-            Enter transaction details to analyze fraud risk.
-          </p>
-
-          <div className="form-group">
-
-            <label>Transaction Amount</label>
-
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="Enter amount"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-
-          </div>
-
-          <button
-            className="analyze-btn"
-            onClick={predictTransaction}
-            disabled={loading}
-          >
-            {loading
-              ? "Analyzing..."
-              : "🔍 Analyze Transaction"}
-          </button>
-
-        </section>
-
-
-        {/* ================= RESULT ================= */}
         {result && (
-          <>
-
-            <section className="result-grid">
-
-              {/* RISK ASSESSMENT */}
-              <div className="card risk-card">
-
-                <h2>Risk Assessment</h2>
-
-                <div className="risk-score">
-                  {Number(result.risk_score || 0).toFixed(2)}
-                  <span>/100</span>
-                </div>
-
-                <div
-                  className={`risk-level ${getRiskClass(
-                    result.risk_level
-                  )}`}
-                >
-                  {result.risk_level || "LOW"}
-                </div>
-
-                <div className="prediction">
-                  {result.prediction || "Normal"}
-                </div>
-
-                <p className="explanation">
-                  {result.explanation ||
-                    "No additional explanation available."}
-                </p>
-
-              </div>
-
-
-              {/* MODEL ANALYSIS */}
-              <div className="card">
-
-                <h2>Model Analysis</h2>
-
-                <div className="model-list">
-
-                  <div className="model">
-                    <span className="model-name">
-                      Isolation Forest
-                    </span>
-
-                    <span className="model-score">
-                      {formatScore(
-                        result.model_scores?.["Isolation Forest"]
-                      )}
-                    </span>
-                  </div>
-
-
-                  <div className="model">
-                    <span className="model-name">
-                      LOF
-                    </span>
-
-                    <span className="model-score">
-                      {formatScore(
-                        result.model_scores?.LOF
-                      )}
-                    </span>
-                  </div>
-
-
-                  <div className="model">
-                    <span className="model-name">
-                      One-Class SVM
-                    </span>
-
-                    <span className="model-score">
-                      {formatScore(
-                        result.model_scores?.["One-Class SVM"]
-                      )}
-                    </span>
-                  </div>
-
-
-                  <div className="model">
-                    <span className="model-name">
-                      Autoencoder
-                    </span>
-
-                    <span className="model-score">
-                      {formatScore(
-                        result.model_scores?.Autoencoder
-                      )}
-                    </span>
-                  </div>
-
-                </div>
-
-              </div>
-
-            </section>
-
-
-            {/* ================= SYSTEM INFORMATION ================= */}
-            <section className="info-grid">
-
-              <div className="info-card">
-                <h3>Hybrid Engine</h3>
-
-                <p>
-                  Combines Isolation Forest, LOF,
-                  One-Class SVM and Autoencoder.
-                </p>
-              </div>
-
-
-              <div className="info-card">
-                <h3>Risk Score</h3>
-
-                <p>
-                  Anomaly risk is represented on a
-                  0–100 scale for easier interpretation.
-                </p>
-              </div>
-
-
-              <div className="info-card">
-                <h3>Detection</h3>
-
-                <p>
-                  Multiple anomaly detection models
-                  analyze the transaction simultaneously.
-                </p>
-              </div>
-
-            </section>
-
-          </>
+          <section className="panel result-panel">
+            <div className="section-heading">
+              <div><span className="section-kicker">ANALYSIS OUTPUT</span><h2>Transaction assessment</h2></div>
+              <span className={`risk-pill ${getRiskClass(result.risk_level)}`}>{result.risk_level || "UNKNOWN"} RISK</span>
+            </div>
+            <div className="result-overview">
+              <div className="score-block"><span>Risk score</span><strong>{Number(result.risk_score || 0).toFixed(1)}<small>/100</small></strong><div className="score-track"><span style={{ width: `${Math.min(100, Math.max(0, Number(result.risk_score || 0)))}%` }} /></div></div>
+              <div className="prediction-block"><span>Prediction</span><strong>{result.prediction || "Unknown"}</strong><p>{result.explanation || "No explanation was returned by the API."}</p></div>
+            </div>
+            <div className="model-score-grid">
+              <ScoreBox label="Isolation Forest" value={result.model_scores?.["Isolation Forest"]} />
+              <ScoreBox label="LOF" value={result.model_scores?.LOF} />
+              <ScoreBox label="One-Class SVM" value={result.model_scores?.["One-Class SVM"]} />
+              <ScoreBox label="Autoencoder" value={result.model_scores?.Autoencoder} />
+            </div>
+          </section>
         )}
 
-
-        {/* ================= FRAUD ALERTS ================= */}
-        <section className="card alerts-section">
-          <div className="history-header">
-            <div>
-              <h2>🚨 Fraud Alerts</h2>
-              <p className="subtitle">
-                Transactions flagged as fraud or high risk by the backend
-              </p>
-            </div>
-            <span className="alerts-count">{alerts.length} alert(s)</span>
+        <section id="bulk" className="panel bulk-panel">
+          <div className="section-heading">
+            <div><span className="section-kicker">03 / BATCH PROCESSING</span><h2>Bulk CSV analysis</h2><p className="muted">Analyze multiple transactions in one upload.</p></div>
+            <span className="panel-icon">⇧</span>
           </div>
-
-          {dashboardError && (
-            <p className="dashboard-error" role="alert">
-              {dashboardError}
-            </p>
+          <div className="upload-box">
+            <div className="upload-symbol">↑</div>
+            <div className="upload-text"><strong>Choose a transaction CSV</strong><small>Required columns: zTime, V1–V28, Amount · Max 10,000 rows</small></div>
+            <input type="file" accept=".csv,text/csv" onChange={(event) => { setCsvFile(event.target.files?.[0] || null); setCsvResult(null); setCsvError(""); }} />
+          </div>
+          {csvFile && <p className="file-selected">Selected: {csvFile.name}</p>}
+          {csvError && <div className="notice notice-error">{csvError}</div>}
+          <div className="bulk-actions">
+            <button className="button button-primary" onClick={uploadCSV} disabled={csvLoading || !csvFile}>{csvLoading ? "Analyzing CSV…" : "Analyze CSV →"}</button>
+            {csvResult && <button className="button button-ghost" onClick={downloadCSVResults}>↓ Download results</button>}
+          </div>
+          {csvResult && (
+            <>
+              <div className="csv-summary-grid">
+                <MiniStat label="Rows analyzed" value={csvResult.total_transactions} />
+                <MiniStat label="Fraud detected" value={csvResult.fraud_detected} />
+                <MiniStat label="Normal" value={csvResult.normal_transactions} />
+                <MiniStat label="High risk" value={csvResult.high_risk_transactions} />
+              </div>
+              <DataTable rows={csvResult.results || []} getRiskClass={getRiskClass} money={money} />
+            </>
           )}
+        </section>
 
-          {alerts.length === 0 ? (
-            <p className="empty-history">
-              No fraud or high-risk alerts currently returned by the API.
-            </p>
-          ) : (
-            <div className="alerts-list">
-              {alerts.map((alert) => (
-                <article className="alert-card" key={alert.id}>
-                  <div className="alert-card-header">
-                    <strong>Transaction #{alert.id}</strong>
-                    <span className={`risk-level ${getRiskClass(alert.risk_level)}`}>
-                      {alert.risk_level || "UNKNOWN"}
-                    </span>
-                  </div>
-                  <p><strong>Prediction:</strong> {alert.prediction || "Unknown"}</p>
-                  <p><strong>Amount:</strong> ₹{Number(alert.amount || 0).toFixed(2)}</p>
-                  <p><strong>Risk score:</strong> {Number(alert.risk_score || 0).toFixed(2)} / 100</p>
-                  <p className="alert-explanation">
-                    {alert.explanation || "No explanation available."}
-                  </p>
-                </article>
-              ))}
+        <section id="alerts" className="panel">
+          <div className="section-heading">
+            <div><span className="section-kicker">04 / PRIORITY QUEUE</span><h2>Fraud alerts</h2><p className="muted">Transactions flagged by the backend.</p></div>
+            <span className="count-badge">{alerts.length} alerts</span>
+          </div>
+          {alerts.length === 0 ? <EmptyState text="No fraud alerts returned by the API yet." /> : (
+            <div className="alert-grid">
+              {alerts.map((item) => <article className="alert-item" key={item.id}>
+                <div className="alert-top"><strong>Transaction #{item.id}</strong><span className={`risk-pill ${getRiskClass(item.risk_level)}`}>{item.risk_level || "UNKNOWN"}</span></div>
+                <div className="alert-amount">{money(item.amount)}</div>
+                <p>{item.prediction || "Unknown prediction"} · Risk score {Number(item.risk_score || 0).toFixed(1)}/100</p>
+                <small>{item.explanation || "No explanation available."}</small>
+              </article>)}
             </div>
           )}
         </section>
 
-        {/* ================= TRANSACTION HISTORY ================= */}
-        <section className="card history-card">
-
-          <div className="history-header">
-
-            <div>
-              <h2>Transaction History</h2>
-
-              <p className="subtitle">
-                Latest transactions stored in PostgreSQL
-              </p>
-            </div>
-
-            <button
-              className="refresh-btn"
-              onClick={loadDashboardData}
-            >
-              🔄 Refresh
-            </button>
-
+        <section id="history" className="panel history-panel">
+          <div className="section-heading">
+            <div><span className="section-kicker">05 / AUDIT TRAIL</span><h2>Transaction history</h2><p className="muted">Latest records stored in PostgreSQL.</p></div>
+            <button className="button button-ghost" onClick={loadDashboardData}>↻ Refresh</button>
           </div>
-
-
-          {history.length === 0 ? (
-
-            <p className="empty-history">
-              No transactions found.
-            </p>
-
-          ) : (
-
-            <div className="history-table-wrapper">
-
-              <table className="history-table">
-
-                <thead>
-
-                  <tr>
-                    <th>ID</th>
-                    <th>Amount</th>
-                    <th>Risk Score</th>
-                    <th>Risk Level</th>
-                    <th>Prediction</th>
-                    <th>Explanation</th>
-                  </tr>
-
-                </thead>
-
-
-                <tbody>
-
-                  {history.map((item) => (
-
-                    <tr key={item.id}>
-
-                      <td>
-                        #{item.id}
-                      </td>
-
-                      <td>
-                        ₹{Number(item.amount || 0).toFixed(2)}
-                      </td>
-
-                      <td>
-                        {Number(item.risk_score || 0).toFixed(2)}
-                      </td>
-
-                      <td>
-
-                        <span
-                          className={`risk-level ${getRiskClass(
-                            item.risk_level
-                          )}`}
-                        >
-                          {item.risk_level}
-                        </span>
-
-                      </td>
-
-                      <td>
-                        {item.prediction}
-                      </td>
-
-                      <td className="explanation-cell">
-                        {item.explanation}
-                      </td>
-
-                    </tr>
-
-                  ))}
-
-                </tbody>
-
-              </table>
-
-            </div>
-
-          )}
-
+          {history.length === 0 ? <EmptyState text="No transactions found. Analyze a transaction or upload a CSV first." /> : <DataTable rows={history} getRiskClass={getRiskClass} money={money} />}
         </section>
-  
 
+        <footer className="footer"><div className="brand-mark small-mark">盾</div><span>SentinelAI · Credit Card Fraud Detection</span><span className="footer-right">Hybrid anomaly detection · Academic project</span></footer>
       </main>
-
-
-      {/* ================= FOOTER ================= */}
-      <footer>
-        Credit Card Fraud Detection • Hybrid Anomaly Engine
-      </footer>
-
     </div>
   );
+}
+
+function StatCard({ label, value, icon, tone }) {
+  return <article className="stat-card"><div className={`stat-icon ${tone}`}>{icon}</div><div className="stat-label">{label}</div><div className="stat-value">{Number(value || 0).toLocaleString("en-IN")}</div><div className="stat-bottom"><span className={`tiny-dot ${tone}`}></span> Database summary</div></article>;
+}
+function ModelRow({ name, detail, color }) {
+  return <div className="model-row"><span className={`model-dot ${color}`}></span><div className="model-copy"><strong>{name}</strong><small>{detail}</small></div><span className="model-check">✓</span></div>;
+}
+function ScoreBox({ label, value }) {
+  return <div className="score-box"><span>{label}</span><strong>{value === undefined || value === null ? "—" : Number(value).toFixed(4)}</strong></div>;
+}
+function MiniStat({ label, value }) {
+  const displayValue = typeof value === "string"
+    ? value
+    : Number(value || 0).toLocaleString("en-IN");
+  return <div className="mini-stat"><span>{label}</span><strong>{displayValue}</strong></div>;
+}
+function EmptyState({ text }) {
+  return <div className="empty-state"><span>⌁</span><p>{text}</p></div>;
+}
+function DataTable({ rows, getRiskClass, money }) {
+  if (!rows.length) return <EmptyState text="No results to display." />;
+  return <div className="table-wrap"><table className="data-table"><thead><tr><th>ID / Row</th><th>Amount</th><th>Risk score</th><th>Risk level</th><th>Prediction</th><th>Explanation</th></tr></thead><tbody>{rows.map((item, index) => <tr key={item.id ?? item.row_number ?? index}><td>#{item.id ?? item.row_number ?? index + 1}</td><td>{money(item.amount)}</td><td>{Number(item.risk_score || 0).toFixed(2)}</td><td><span className={`risk-pill ${getRiskClass(item.risk_level)}`}>{item.risk_level || "UNKNOWN"}</span></td><td>{item.prediction || "Unknown"}</td><td className="explanation">{item.explanation || "—"}</td></tr>)}</tbody></table></div>;
 }
 
 export default App;
