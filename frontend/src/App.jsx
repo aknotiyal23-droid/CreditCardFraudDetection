@@ -4,6 +4,33 @@ import "./App.css";
 // Deployed Render API
 const API_URL = "https://credit-card-fraud-api-7gp8.onrender.com";
 
+// Render free instances can take time to wake up; show useful network errors.
+async function apiFetch(path, options = {}) {
+  let response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      mode: "cors",
+      credentials: "omit",
+      signal: options.signal || AbortSignal.timeout(90000),
+    });
+  } catch (error) {
+    if (error?.name === "TimeoutError" || error?.name === "AbortError") {
+      throw new Error("The API took too long to respond. Wait 30–60 seconds and try again.");
+    }
+    throw new Error("The browser could not reach the API. Check the Render deployment and CORS settings, then refresh this page.");
+  }
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = typeof data.detail === "string"
+      ? data.detail
+      : data.detail ? JSON.stringify(data.detail) : `API returned ${response.status}`;
+    throw new Error(detail);
+  }
+  return data;
+}
+
 function App() {
   const [amount, setAmount] = useState("");
   const [result, setResult] = useState(null);
@@ -30,20 +57,10 @@ function App() {
   const loadDashboardData = async () => {
     try {
       setDashboardError("");
-      const [historyResponse, statsResponse, alertsResponse] = await Promise.all([
-        fetch(`${API_URL}/history`),
-        fetch(`${API_URL}/stats`),
-        fetch(`${API_URL}/alerts`),
-      ]);
-
-      if (!historyResponse.ok || !statsResponse.ok || !alertsResponse.ok) {
-        throw new Error("Dashboard API request failed");
-      }
-
       const [historyData, statsData, alertsData] = await Promise.all([
-        historyResponse.json(),
-        statsResponse.json(),
-        alertsResponse.json(),
+        apiFetch("/history"),
+        apiFetch("/stats"),
+        apiFetch("/alerts"),
       ]);
 
       setHistory(historyData.transactions || []);
@@ -53,11 +70,7 @@ function App() {
       // Load saved model evaluation metrics separately so a metrics error
       // does not prevent the rest of the dashboard from loading.
       try {
-        const metricsResponse = await fetch(`${API_URL}/model-metrics`);
-        const metricsData = await metricsResponse.json().catch(() => ({}));
-        if (!metricsResponse.ok) {
-          throw new Error(metricsData.detail || `Metrics API returned ${metricsResponse.status}`);
-        }
+        const metricsData = await apiFetch("/model-metrics");
         setModelMetrics(metricsData.metrics || metricsData);
         setMetricsError("");
       } catch (metricsFetchError) {
@@ -100,20 +113,16 @@ function App() {
     };
 
     try {
-      const response = await fetch(`${API_URL}/predict`, {
+      const data = await apiFetch("/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(transaction),
       });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data.detail || `API returned ${response.status}`);
-      }
       setResult(data);
       await loadDashboardData();
     } catch (error) {
       console.error("Prediction error:", error);
-      window.alert(`Prediction failed: ${error.message}. Check the API /docs page.`);
+      window.alert(`Prediction failed: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -136,17 +145,10 @@ function App() {
     setCsvResult(null);
 
     try {
-      const response = await fetch(`${API_URL}/predict-csv`, {
+      const data = await apiFetch("/predict-csv", {
         method: "POST",
         body: formData,
       });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const detail = typeof data.detail === "string"
-          ? data.detail
-          : JSON.stringify(data.detail || "CSV analysis failed");
-        throw new Error(detail);
-      }
       setCsvResult(data);
       await loadDashboardData();
     } catch (error) {

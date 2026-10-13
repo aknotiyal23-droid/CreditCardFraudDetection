@@ -26,7 +26,9 @@ app.add_middleware(
         "http://localhost:5174",
         "https://credit-card-fraud-detection-wwnj.vercel.app",
     ],
-    allow_credentials=True,
+    # Also allow Vercel preview deployments for this frontend.
+    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
