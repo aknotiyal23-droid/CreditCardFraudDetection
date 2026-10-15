@@ -34,6 +34,7 @@ async function apiFetch(path, options = {}) {
 
 function App() {
   const [amount, setAmount] = useState("");
+  const [dashboardSearch, setDashboardSearch] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -197,37 +198,80 @@ function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand-mark">盾</div>
-        <div className="brand-copy">
-          <strong>Sentinel<span>AI</span></strong>
-          <small>FRAUD INTELLIGENCE</small>
+        <div className="brand-lockup">
+          <div className="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none"><path d="M16 3.5 26 7v8.2c0 6.3-4 10.8-10 13.3-6-2.5-10-7-10-13.3V7l10-3.5Z" stroke="currentColor" strokeWidth="1.8"/><path d="m11.5 15.8 3 3 6-6.4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </div>
+          <div className="brand-copy">
+            <strong>Sentinel<span>AI</span></strong>
+            <small>FRAUD INTELLIGENCE</small>
+          </div>
         </div>
         <div className="side-label">WORKSPACE</div>
-        <a className="side-link active" href="#overview"><span>▦</span> Overview</a>
-        <a className="side-link" href="#analyze"><span>⌕</span> Analyze transaction</a>
-        <a className="side-link" href="#bulk"><span>⇧</span> Bulk CSV analysis</a>
-        <a className="side-link" href="#alerts"><span>◉</span> Fraud alerts</a>
-        <a className="side-link" href="#history"><span>◷</span> Transaction history</a>
+        <nav className="side-nav" aria-label="Dashboard sections">
+          <a className="side-link active" href="#overview"><span>▦</span> Overview</a>
+          <a className="side-link" href="#analyze"><span>⌕</span> Analyze transaction</a>
+          <a className="side-link" href="#bulk"><span>⇧</span> Bulk CSV analysis</a>
+          <a className="side-link" href="#alerts"><span>◉</span> Fraud alerts</a>
+          <a className="side-link" href="#history"><span>◷</span> Transaction history</a>
+        </nav>
         <div className="sidebar-bottom">
           <div className="secure-dot"></div>
-          <div><strong>API connection</strong><small>Local backend · 127.0.0.1:8000</small></div>
+          <div><strong>Secure connection</strong><small>Local model API · port 8000</small></div>
         </div>
       </aside>
 
       <main className="main-content">
-        <header className="topbar">
-          <div>
-            <div className="eyebrow">RISK OPERATIONS / OVERVIEW</div>
-            <h1>Fraud Intelligence Dashboard</h1>
-            <p className="muted">Monitor transaction anomalies and investigate suspicious activity.</p>
+        <div className="reference-toolbar">
+          <label className="global-search" htmlFor="dashboard-search">
+            <span aria-hidden="true">⌕</span>
+            <input
+              id="dashboard-search"
+              type="search"
+              placeholder="Search transactions, alerts, or features..."
+              value={dashboardSearch}
+              onChange={(event) => setDashboardSearch(event.target.value)}
+            />
+          </label>
+          <div className="toolbar-right">
+            <span className="system-pill"><span className="secure-dot"></span> System Online</span>
+            <button className="toolbar-icon" type="button" onClick={loadDashboardData} aria-label="Refresh dashboard">↻</button>
+            <span className="toolbar-date">{new Date().toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}</span>
           </div>
-          <button className="button button-ghost" onClick={loadDashboardData}>↻ Refresh data</button>
+        </div>
+        <header className="topbar">
+          <div className="topbar-copy">
+            <div className="eyebrow"><span className="eyebrow-mark"></span> RISK OPERATIONS <span className="eyebrow-divider">/</span> OVERVIEW</div>
+            <h1>Fraud intelligence <span>dashboard</span></h1>
+            <p className="muted">A clear view of transaction risk, model signals, and emerging fraud activity.</p>
+          </div>
+          <div className="topbar-actions">
+            <span className="system-pill"><span className="secure-dot"></span> SYSTEM ONLINE</span>
+            <button className="button button-ghost" onClick={loadDashboardData}><span className="refresh-icon">↻</span> Refresh data</button>
+          </div>
         </header>
 
+        <section className="hero-banner">
+          <div className="hero-copy">
+            <span className="hero-kicker">SENTINELAI · FRAUD INTELLIGENCE</span>
+            <h2>Detect Fraud. <span>Secure Tomorrow.</span></h2>
+            <p>AI-powered credit card fraud detection using hybrid machine learning.</p>
+            <div className="hero-tags">
+              <span>✓ Real-time analysis</span><span>✦ Multiple ML models</span><span>✓ Risk assessment</span>
+            </div>
+          </div>
+          <div className="hero-art" aria-hidden="true">
+            <div className="hero-orbit orbit-one"></div><div className="hero-orbit orbit-two"></div>
+            <div className="hero-card"><span>▰▰</span><b>•••• &nbsp; •••• &nbsp; 3456</b><small>SECURE TRANSACTION</small></div>
+            <div className="hero-shield">⬡<strong>✓</strong></div>
+          </div>
+          <div className="hero-promise"><strong>Smart<br/>Secure<br/>Reliable</strong><small>Fraud detection<br/>for a safer world</small></div>
+        </section>
+
         <section id="overview" className="status-strip">
-          <span className="status-pulse"></span>
-          <span><strong>Monitoring workspace</strong> · Live API connection is checked when data is requested.</span>
-          <a href={`${API_URL}/docs`} target="_blank" rel="noreferrer">Open API docs ↗</a>
+          <span className="status-symbol">✦</span>
+          <div className="status-copy"><strong>All systems operational</strong><span>Hybrid detection engine is ready to analyze transaction activity.</span></div>
+          <a href={`${API_URL}/docs`} target="_blank" rel="noreferrer">API documentation <span>↗</span></a>
         </section>
 
         {dashboardError && <div className="notice notice-warning">{dashboardError}</div>}
@@ -237,6 +281,7 @@ function App() {
           <StatCard label="Fraud detected" value={stats.fraud_detected} icon="⌁" tone="red" />
           <StatCard label="Normal transactions" value={stats.normal_transactions} icon="✓" tone="green" />
           <StatCard label="High-risk transactions" value={stats.high_risk_transactions} icon="⚠" tone="amber" />
+          <StatCard label="Average risk score" value={Number(stats.average_risk_score || 0).toFixed(2)} icon="↗" tone="purple" />
         </section>
 
         <section className="panel metrics-panel">
@@ -244,7 +289,7 @@ function App() {
             <div>
               <span className="section-kicker">MODEL EVALUATION</span>
               <h2>Model performance</h2>
-              <p className="muted">Saved validation metrics from the evaluation report.</p>
+            <p className="muted">Validation performance from the saved model evaluation.</p>
             </div>
             <span className="live-badge">VALIDATION</span>
           </div>
@@ -264,13 +309,51 @@ function App() {
           <p className="tiny-note">These are saved evaluation results, not a guarantee of real-world fraud detection performance.</p>
         </section>
 
+        <section className="insights-grid">
+          <section className="panel insight-panel">
+            <div className="section-heading"><div><span className="section-kicker">LIVE DATA</span><h2>Transaction distribution</h2></div><span className="live-badge">DATABASE</span></div>
+            <div className="distribution-layout">
+              <div className="donut-chart" style={{ "--fraud-share": `${stats.total_transactions ? (Number(stats.fraud_detected || 0) / Number(stats.total_transactions || 1)) * 100 : 0}%`, "--normal-share": `${stats.total_transactions ? (Number(stats.normal_transactions || 0) / Number(stats.total_transactions || 1)) * 100 : 0}%` }}>
+                <div><strong>{Number(stats.total_transactions || 0).toLocaleString("en-IN")}</strong><span>Total</span></div>
+              </div>
+              <div className="distribution-legend">
+                <div><i className="legend-dot fraud-dot"></i><span>Fraud detected</span><strong>{Number(stats.fraud_detected || 0).toLocaleString("en-IN")}</strong></div>
+                <div><i className="legend-dot normal-dot"></i><span>Normal</span><strong>{Number(stats.normal_transactions || 0).toLocaleString("en-IN")}</strong></div>
+                <div><i className="legend-dot risk-dot"></i><span>High risk</span><strong>{Number(stats.high_risk_transactions || 0).toLocaleString("en-IN")}</strong></div>
+              </div>
+            </div>
+            <p className="tiny-note">Visualized from the current API statistics.</p>
+          </section>
+          <section className="panel insight-panel">
+            <div className="section-heading"><div><span className="section-kicker">RECENT ACTIVITY</span><h2>Risk score overview</h2></div><span className="live-badge">HISTORY</span></div>
+            {history.length ? <div className="risk-bars">
+              {history.slice(0, 7).slice().reverse().map((item, index) => {
+                const score = Math.min(100, Math.max(0, Number(item.risk_score || 0)));
+                return <div className="risk-bar-column" key={item.id ?? item.row_number ?? index} title={`Risk score ${score.toFixed(2)}`}>
+                  <span className="risk-bar-value">{score.toFixed(0)}</span><div className="risk-bar-track"><i style={{ height: `${Math.max(4, score)}%` }} /></div><small>{item.id ? `#${item.id}` : `R${item.row_number ?? index + 1}`}</small>
+                </div>;
+              })}
+            </div> : <EmptyState text="Analyze a transaction to populate the risk overview." />}
+            <p className="tiny-note">Recent saved risk scores; this is not a time-series forecast.</p>
+          </section>
+          <section className="panel insight-panel performance-insight">
+            <div className="section-heading"><div><span className="section-kicker">MODEL EVALUATION</span><h2>Model performance</h2></div><span className="live-badge">SAVED METRICS</span></div>
+            <div className="ring-grid">
+              <MetricRing label="Precision" value={modelMetrics ? Number(modelMetrics.precision || 0) * 100 : null} />
+              <MetricRing label="Recall" value={modelMetrics ? Number(modelMetrics.recall || 0) * 100 : null} />
+              <MetricRing label="F1 score" value={modelMetrics ? Number(modelMetrics.f1_score || 0) * 100 : null} />
+            </div>
+            <p className="tiny-note">Uses saved model evaluation values when available.</p>
+          </section>
+        </section>
+
         <section className="content-grid">
           <section id="analyze" className="panel analyze-panel">
             <div className="section-heading">
-              <div><span className="section-kicker">01 / QUICK CHECK</span><h2>Analyze a transaction</h2></div>
+              <div><span className="section-kicker">01 <i /> QUICK CHECK</span><h2>Analyze a transaction</h2></div>
               <span className="panel-icon">⌕</span>
             </div>
-            <p className="muted">Enter an amount to run a prediction using the backend's current sample feature values.</p>
+            <p className="muted">Run a quick risk check using the hybrid anomaly detection models.</p>
             <label htmlFor="amount">Transaction amount (₹)</label>
             <div className="amount-input">
               <span>₹</span>
@@ -279,7 +362,7 @@ function App() {
             <button className="button button-primary full-width" onClick={predictTransaction} disabled={loading}>
               {loading ? <><span className="spinner"></span> Analyzing…</> : "Run fraud analysis →"}
             </button>
-            <p className="tiny-note">Note: this quick check varies the amount only. Use CSV analysis for transaction feature data.</p>
+            <p className="tiny-note"><span className="note-mark">i</span> Quick check uses sample transaction features with your amount. Upload a CSV for full transaction data.</p>
           </section>
 
           <section className="panel model-panel">
@@ -296,7 +379,7 @@ function App() {
         </section>
 
         {result && (
-          <section className="panel result-panel">
+          <section className="panel result-panel" aria-live="polite">
             <div className="section-heading">
               <div><span className="section-kicker">ANALYSIS OUTPUT</span><h2>Transaction assessment</h2></div>
               <span className={`risk-pill ${getRiskClass(result.risk_level)}`}>{result.risk_level || "UNKNOWN"} RISK</span>
@@ -315,8 +398,8 @@ function App() {
         )}
 
         <section id="bulk" className="panel bulk-panel">
-          <div className="section-heading">
-            <div><span className="section-kicker">03 / BATCH PROCESSING</span><h2>Bulk CSV analysis</h2><p className="muted">Analyze multiple transactions in one upload.</p></div>
+            <div className="section-heading">
+              <div><span className="section-kicker">03 <i /> BATCH PROCESSING</span><h2>Bulk CSV analysis</h2><p className="muted">Analyze multiple transactions in one upload.</p></div>
             <span className="panel-icon">⇧</span>
           </div>
           <div className="upload-box">
@@ -345,7 +428,7 @@ function App() {
 
         <section id="alerts" className="panel">
           <div className="section-heading">
-            <div><span className="section-kicker">04 / PRIORITY QUEUE</span><h2>Fraud alerts</h2><p className="muted">Transactions flagged by the backend.</p></div>
+            <div><span className="section-kicker">04 <i /> PRIORITY QUEUE</span><h2>Fraud alerts</h2><p className="muted">Transactions flagged by the backend.</p></div>
             <span className="count-badge">{alerts.length} alerts</span>
           </div>
           {alerts.length === 0 ? <EmptyState text="No fraud alerts returned by the API yet." /> : (
@@ -362,16 +445,26 @@ function App() {
 
         <section id="history" className="panel history-panel">
           <div className="section-heading">
-            <div><span className="section-kicker">05 / AUDIT TRAIL</span><h2>Transaction history</h2><p className="muted">Latest records stored in PostgreSQL.</p></div>
+            <div><span className="section-kicker">05 <i /> AUDIT TRAIL</span><h2>Transaction history</h2><p className="muted">Recent analysis records saved to the local database.</p></div>
             <button className="button button-ghost" onClick={loadDashboardData}>↻ Refresh</button>
           </div>
-          {history.length === 0 ? <EmptyState text="No transactions found. Analyze a transaction or upload a CSV first." /> : <DataTable rows={history} getRiskClass={getRiskClass} money={money} />}
+          {history.length === 0 ? <EmptyState text="No transactions found. Analyze a transaction or upload a CSV first." /> : <DataTable rows={history.filter((item) => !dashboardSearch.trim() || [item.id, item.amount, item.risk_score, item.risk_level, item.prediction, item.explanation].some((value) => String(value ?? "").toLowerCase().includes(dashboardSearch.trim().toLowerCase())))} getRiskClass={getRiskClass} money={money} />}
         </section>
 
         <footer className="footer"><div className="brand-mark small-mark">盾</div><span>SentinelAI · Credit Card Fraud Detection</span><span className="footer-right">Hybrid anomaly detection · Academic project</span></footer>
       </main>
     </div>
   );
+}
+
+function MetricRing({ label, value }) {
+  const safeValue = value === null ? 0 : Math.min(100, Math.max(0, value));
+  return <div className="metric-ring-wrap">
+    <div className="metric-ring" style={{ "--ring-value": `${safeValue * 3.6}deg` }}>
+      <div><strong>{value === null ? "—" : `${safeValue.toFixed(0)}%`}</strong></div>
+    </div>
+    <span>{label}</span>
+  </div>;
 }
 
 function StatCard({ label, value, icon, tone }) {
