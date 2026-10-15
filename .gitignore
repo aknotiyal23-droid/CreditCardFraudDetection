@@ -39,3 +39,4 @@ Thumbs.db
 # Datasets - do not upload raw data
 data/raw/
 data/processed/
+backend/*.db

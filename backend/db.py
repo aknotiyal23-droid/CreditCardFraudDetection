@@ -11,13 +11,24 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.sql import func
+from sqlalchemy.engine import make_url
 
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# Use a local SQLite database for development so the API can start without a
+# separately installed PostgreSQL server. Deployments can continue to provide
+# DATABASE_URL to use PostgreSQL.
+if DATABASE_URL and DATABASE_URL.startswith(("postgres://", "postgresql://", "postgresql+psycopg2://")):
+    configured_url = make_url(DATABASE_URL)
+    if configured_url.host in {"localhost", "127.0.0.1", "::1"}:
+        # A local PostgreSQL URL is commonly present in a developer's .env even
+        # when the PostgreSQL service is not installed or running.
+        DATABASE_URL = None
+
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URL environment variable is missing")
+    DATABASE_URL = f"sqlite:///{(os.path.dirname(__file__) + '/fraud_detection.db').replace(os.sep, '/')}"
 
 # Render PostgreSQL driver configuration
 if DATABASE_URL.startswith("postgres://"):
@@ -33,10 +44,11 @@ elif DATABASE_URL.startswith("postgresql://"):
         1
     )
 
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True
-)
+engine_options = {"pool_pre_ping": True}
+if DATABASE_URL.startswith("sqlite:"):
+    engine_options["connect_args"] = {"check_same_thread": False}
+
+engine = create_engine(DATABASE_URL, **engine_options)
 
 SessionLocal = sessionmaker(
     autocommit=False,
@@ -71,4 +83,4 @@ class TransactionRecord(Base):
 
 Base.metadata.create_all(bind=engine)
 
-print("PostgreSQL database engine ready!")
+print(f"Database engine ready: {'SQLite' if DATABASE_URL.startswith('sqlite:') else 'PostgreSQL'}")

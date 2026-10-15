@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 
-// Deployed Render API
-const API_URL = "https://credit-card-fraud-api-7gp8.onrender.com";
+// Local development uses the local API; deployments can override this value
+// with VITE_API_URL in their build environment.
+const API_URL = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
-// Render free instances can take time to wake up; show useful network errors.
+// Show a useful message when the local API has not been started yet.
 async function apiFetch(path, options = {}) {
   let response;
   try {
@@ -18,7 +19,7 @@ async function apiFetch(path, options = {}) {
     if (error?.name === "TimeoutError" || error?.name === "AbortError") {
       throw new Error("The API took too long to respond. Wait 30–60 seconds and try again.");
     }
-    throw new Error("The browser could not reach the API. Check the Render deployment and CORS settings, then refresh this page.");
+    throw new Error(`Cannot reach ${API_URL}. Start the backend in a second terminal, then try again.`);
   }
 
   const data = await response.json().catch(() => ({}));
@@ -209,7 +210,7 @@ function App() {
         <a className="side-link" href="#history"><span>◷</span> Transaction history</a>
         <div className="sidebar-bottom">
           <div className="secure-dot"></div>
-          <div><strong>API connection</strong><small>Render deployment</small></div>
+          <div><strong>API connection</strong><small>Local backend · 127.0.0.1:8000</small></div>
         </div>
       </aside>
 

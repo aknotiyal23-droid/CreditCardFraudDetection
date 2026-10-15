@@ -24,10 +24,12 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://localhost:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
         "https://credit-card-fraud-detection-wwnj.vercel.app",
     ],
     # Also allow Vercel preview deployments for this frontend.
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origin_regex=r"^(https://.*\.vercel\.app|http://(?:localhost|127\.0\.0\.1):517\d+)$",
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -82,11 +84,11 @@ try:
         config["best_threshold"]
     )
 
-    print("✅ All models loaded successfully")
+    print("All models loaded successfully")
 
 except Exception as e:
 
-    print("❌ Model loading failed:", e)
+    print("Model loading failed:", e)
     raise
 
 
@@ -505,7 +507,7 @@ def predict_transaction(transaction: Transaction):
 
         except Exception as db_error:
             db.rollback()
-            print("⚠️ PostgreSQL save failed:", db_error)
+            print("Database save failed:", db_error)
 
         finally:
             db.close()

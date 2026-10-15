@@ -106,15 +106,17 @@ tests/         - Test files
 
 ## 9. Run the Backend
 
-Activate your Python virtual environment.
+On Windows, double-click `start_project.bat` or run `npm run dev` from the
+frontend folder. This starts the backend, waits for its models to load, then
+starts the dashboard. Keep that terminal open while using the app.
 
-Install dependencies:
+From the project root, install dependencies into your virtual environment if
+needed, then start the backend:
 
-pip install -r requirements.txt
-
-Start the backend from the project root:
-
-uvicorn backend.main:app --reload
+```powershell
+.\venv\Scripts\python.exe -m pip install -r requirements.txt
+.\venv\Scripts\python.exe -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
+```
 
 API documentation:
 
@@ -122,21 +124,21 @@ http://127.0.0.1:8000/docs
 
 ## 10. Run the Frontend
 
-Open another terminal:
+Keep the backend terminal running and open another terminal:
 
+```powershell
 cd frontend
 npm install
 npm run dev
+```
 
 Open the local URL printed by Vite.
 
 ## 11. Database Configuration
 
-Install PostgreSQL and create the database:
-
-fraud_detection_db
-
-Configure the DATABASE_URL in your local .env file.
+For local development, SQLite is used automatically when `DATABASE_URL` is
+unset or points to PostgreSQL on `localhost`. Set `DATABASE_URL` to a hosted
+PostgreSQL URL when deploying.
 
 Do not commit or share the .env file because it may contain credentials.
 
